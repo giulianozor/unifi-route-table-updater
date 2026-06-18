@@ -1,0 +1,10 @@
+unifi_base_url: "https://192.168.1.1:8443"
+unifi_api_key: "your-api-key-here"
+unifi_site: "default"
+dns_name: "home.example.com"
+route_id: "<route-id-from-unifi>"
+route_cidr: "/32"
+check_interval: "5m"
+insecure: true
+ca_cert: "/path/to/ca.pem"
+verbose: false
