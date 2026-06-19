@@ -13,6 +13,7 @@ import (
 
 	"github.com/giuliano/urt/internal/config"
 	"github.com/giuliano/urt/internal/dns"
+	"github.com/giuliano/urt/internal/telegram"
 	"github.com/giuliano/urt/internal/unifi"
 )
 
@@ -34,6 +35,7 @@ func main() {
 	infoFlag := flag.Bool("info", false, "query the UniFi integration API for controller info and exit")
 	listSitesFlag := flag.Bool("list-sites", false, "list all sites and exit")
 	getRouteFlag := flag.Bool("get-route", false, "get the current route configuration as JSON and exit")
+	testTelegramFlag := flag.Bool("test-telegram", false, "send a test telegram message and exit")
 	flag.Parse()
 
 	cfg, err := config.Load(*configPath)
@@ -48,6 +50,19 @@ func main() {
 		cfg.Verbose = true
 	}
 	verbose = cfg.Verbose
+
+	if *testTelegramFlag {
+		if cfg.TelegramBotToken == "" || cfg.TelegramChatID == "" {
+			log.Fatalf("telegram_bot_token and telegram_chat_id must be set in config")
+		}
+		msg := "This is a test message from urt"
+		if err := telegram.Send(cfg.TelegramBotToken, cfg.TelegramChatID, msg); err != nil {
+			log.Fatalf("telegram test failed: %v", err)
+		}
+		fmt.Println("test telegram message sent")
+		return
+	}
+
 	client, err := unifi.NewClient(cfg.UnifiBaseURL, cfg.UnifiAPIKey, cfg.UnifiSite, cfg.Insecure, cfg.CACert)
 	if err != nil {
 		log.Fatalf("client: %v", err)
@@ -167,19 +182,26 @@ func run(cfg *config.Config, client *unifi.Client, dryRun bool) error {
 		return nil
 	}
 
-	verbosef("destination changed from %s to %s", route.Destination, newDest)
-
 	if dryRun {
 		log.Printf("DRY RUN: would update route %s (%s) destination to %s", route.Name, route.ID, newDest)
 		return nil
 	}
 
-	verbosef("updating...")
+	oldDest := route.Destination
+	verbosef("destination changed from %s to %s", oldDest, newDest)
+
 	route.Destination = newDest
 	if err := client.UpdateStaticRoute(route); err != nil {
 		log.Printf("failed to update route: %v", err)
 		return err
 	}
 	fmt.Printf("SUCCESS: updated route %s (%s) destination to %s\n", route.Name, route.ID, newDest)
+
+	if cfg.TelegramEnabled {
+		msg := fmt.Sprintf("Route %s updated: %s -> %s", route.Name, oldDest, newDest)
+		if err := telegram.Send(cfg.TelegramBotToken, cfg.TelegramChatID, msg); err != nil {
+			log.Printf("telegram notification failed: %v", err)
+		}
+	}
 	return nil
 }

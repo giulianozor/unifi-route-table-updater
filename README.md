@@ -11,6 +11,8 @@ A lightweight Go daemon that resolves a DNS name to its public IPv4 address and,
 
 The check repeats on a configurable interval (default 5 minutes).
 
+When the route is updated, an optional Telegram notification can be sent (disabled by default).
+
 ## Usage
 
 ```bash
@@ -50,6 +52,9 @@ check_interval: "5m"
 insecure: true
 ca_cert: "/path/to/ca.pem"
 verbose: false
+# telegram_enabled: false
+# telegram_bot_token: "your-bot-token"
+# telegram_chat_id: "your-chat-id"
 ```
 
 | Field | Required | Default | Description |
@@ -64,6 +69,9 @@ verbose: false
 | `insecure` | No | `false` | Skip TLS certificate verification (for self-signed UniFi certs) |
 | `ca_cert` | No | — | Path to a PEM CA or intermediate certificate to trust for TLS |
 | `verbose` | No | `false` | Enable verbose debug output (logs HTTP requests, response bodies on errors) |
+| `telegram_enabled` | No | `false` | Send a Telegram notification when the route is updated |
+| `telegram_bot_token` | No | — | Telegram bot token (required if `telegram_enabled` is `true`) |
+| `telegram_chat_id` | No | — | Telegram chat ID to send the message to (required if `telegram_enabled` is `true`) |
 
 ## CLI flags
 

@@ -193,6 +193,78 @@ route_id: "abc123"
 	}
 }
 
+func TestLoad_TelegramEnabledMissingToken(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	content := []byte(`
+unifi_base_url: "https://192.168.1.1:8443"
+unifi_api_key: "test-key"
+dns_name: "home.example.com"
+route_id: "abc123"
+telegram_enabled: true
+`)
+	if err := os.WriteFile(path, content, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected error for telegram_enabled without bot_token")
+	}
+}
+
+func TestLoad_TelegramEnabledMissingChatID(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	content := []byte(`
+unifi_base_url: "https://192.168.1.1:8443"
+unifi_api_key: "test-key"
+dns_name: "home.example.com"
+route_id: "abc123"
+telegram_enabled: true
+telegram_bot_token: "bot123"
+`)
+	if err := os.WriteFile(path, content, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected error for telegram_enabled without chat_id")
+	}
+}
+
+func TestLoad_TelegramEnabledValid(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	content := []byte(`
+unifi_base_url: "https://192.168.1.1:8443"
+unifi_api_key: "test-key"
+dns_name: "home.example.com"
+route_id: "abc123"
+telegram_enabled: true
+telegram_bot_token: "bot123"
+telegram_chat_id: "chat456"
+`)
+	if err := os.WriteFile(path, content, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.TelegramEnabled {
+		t.Fatal("expected telegram_enabled to be true")
+	}
+	if cfg.TelegramBotToken != "bot123" {
+		t.Fatalf("unexpected bot token: %s", cfg.TelegramBotToken)
+	}
+	if cfg.TelegramChatID != "chat456" {
+		t.Fatalf("unexpected chat id: %s", cfg.TelegramChatID)
+	}
+}
+
 func TestLoad_ZeroCheckInterval(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")

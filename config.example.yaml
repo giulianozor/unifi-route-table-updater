@@ -8,3 +8,6 @@ check_interval: "5m"
 insecure: true
 ca_cert: "/path/to/ca.pem"
 verbose: false
+# telegram_enabled: false
+# telegram_bot_token: "your-bot-token"
+# telegram_chat_id: "your-chat-id"

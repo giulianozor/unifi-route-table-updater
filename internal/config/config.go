@@ -10,16 +10,19 @@ import (
 )
 
 type Config struct {
-	UnifiBaseURL  string        `yaml:"unifi_base_url"`
-	UnifiAPIKey   string        `yaml:"unifi_api_key"`
-	UnifiSite     string        `yaml:"unifi_site"`
-	RouteID       string        `yaml:"route_id"`
-	RouteCIDR     string        `yaml:"route_cidr"`
-	DNSName       string        `yaml:"dns_name"`
-	CheckInterval time.Duration `yaml:"check_interval"`
-	Insecure      bool          `yaml:"insecure"`
-	CACert        string        `yaml:"ca_cert"`
-	Verbose       bool          `yaml:"verbose"`
+	UnifiBaseURL     string        `yaml:"unifi_base_url"`
+	UnifiAPIKey      string        `yaml:"unifi_api_key"`
+	UnifiSite        string        `yaml:"unifi_site"`
+	RouteID          string        `yaml:"route_id"`
+	RouteCIDR        string        `yaml:"route_cidr"`
+	DNSName          string        `yaml:"dns_name"`
+	CheckInterval    time.Duration `yaml:"check_interval"`
+	Insecure         bool          `yaml:"insecure"`
+	CACert           string        `yaml:"ca_cert"`
+	Verbose          bool          `yaml:"verbose"`
+	TelegramEnabled  bool          `yaml:"telegram_enabled"`
+	TelegramBotToken string        `yaml:"telegram_bot_token"`
+	TelegramChatID   string        `yaml:"telegram_chat_id"`
 }
 
 func Load(path string) (*Config, error) {
@@ -53,6 +56,15 @@ func Load(path string) (*Config, error) {
 
 	if cfg.CheckInterval <= 0 {
 		return nil, fmt.Errorf("check_interval must be positive, got %s", cfg.CheckInterval)
+	}
+
+	if cfg.TelegramEnabled {
+		if cfg.TelegramBotToken == "" {
+			return nil, fmt.Errorf("telegram_bot_token is required when telegram_enabled is true")
+		}
+		if cfg.TelegramChatID == "" {
+			return nil, fmt.Errorf("telegram_chat_id is required when telegram_enabled is true")
+		}
 	}
 
 	return cfg, nil
