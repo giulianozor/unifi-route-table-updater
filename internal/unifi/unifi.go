@@ -22,13 +22,16 @@ type Client struct {
 }
 
 type StaticRoute struct {
-	ID          string `json:"_id,omitempty"`
-	Name        string `json:"name"`
-	Destination string `json:"destination"`
-	Nexthop     string `json:"nexthop"`
-	Type        string `json:"type"`
-	Enabled     bool   `json:"enabled"`
-	RouteDist   int    `json:"route_distance"`
+	ID              string `json:"_id,omitempty"`
+	Name            string `json:"name"`
+	Destination     string `json:"static-route_network"`
+	Interface       string `json:"static-route_interface"`
+	RouteType       string `json:"static-route_type"`
+	Type            string `json:"type"`
+	Enabled         bool   `json:"enabled"`
+	GatewayDevice   string `json:"gateway_device"`
+	GatewayType     string `json:"gateway_type"`
+	SiteID          string `json:"site_id"`
 }
 
 type unifiResponse struct {
@@ -167,6 +170,19 @@ func (c *Client) ListStaticRoutes() ([]StaticRoute, error) {
 	return c.fetchRoutes()
 }
 
+func (c *Client) ListStaticRoutesRaw() (string, error) {
+	resp, err := c.do("GET", c.sitePath("/routing"), nil)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("list routes failed: %s: %s", resp.Status, string(body))
+	}
+	return string(body), nil
+}
+
 func (c *Client) GetStaticRoute(id string) (*StaticRoute, error) {
 	resp, err := c.do("GET", c.sitePath("/routing/"+id), nil)
 	if err != nil {
@@ -194,6 +210,19 @@ func (c *Client) GetStaticRoute(id string) (*StaticRoute, error) {
 		return nil, err
 	}
 	return &route, nil
+}
+
+func (c *Client) GetStaticRouteRaw(id string) (string, error) {
+	resp, err := c.do("GET", c.sitePath("/routing/"+id), nil)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("get route failed: %s: %s", resp.Status, string(body))
+	}
+	return string(body), nil
 }
 
 func (c *Client) UpdateStaticRoute(route *StaticRoute) error {

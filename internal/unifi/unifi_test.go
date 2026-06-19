@@ -15,13 +15,16 @@ func newTestClient(baseURL, apiKey, site string) *Client {
 
 func testRoute(id, name, dest string) StaticRoute {
 	return StaticRoute{
-		ID:          id,
-		Name:        name,
-		Destination: dest,
-		Nexthop:     "192.168.1.1",
-		Type:        "static",
-		Enabled:     true,
-		RouteDist:   1,
+		ID:            id,
+		Name:          name,
+		Destination:   dest,
+		Interface:     "6a0ba933836aa09b8d15f089",
+		RouteType:     "interface-route",
+		Type:          "static-route",
+		Enabled:       true,
+		GatewayDevice: "94:2a:6f:52:cb:e8",
+		GatewayType:   "default",
+		SiteID:        "69b146bc8c38ba0b451b832d",
 	}
 }
 

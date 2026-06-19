@@ -66,12 +66,13 @@ func main() {
 	}
 
 	if *getRouteFlag {
-		route, err := client.GetStaticRoute(cfg.RouteID)
+		raw, err := client.GetStaticRouteRaw(cfg.RouteID)
 		if err != nil {
 			log.Fatalf("get route: %v", err)
 		}
-		b, _ := json.MarshalIndent(route, "", "  ")
-		fmt.Println(string(b))
+		var pretty bytes.Buffer
+		json.Indent(&pretty, []byte(raw), "", "  ")
+		fmt.Println(pretty.String())
 		return
 	}
 
@@ -87,12 +88,13 @@ func main() {
 	}
 
 	if *listRoutesFlag {
-		routes, err := client.ListStaticRoutes()
+		raw, err := client.ListStaticRoutesRaw()
 		if err != nil {
 			log.Fatalf("list routes: %v", err)
 		}
-		b, _ := json.MarshalIndent(routes, "", "  ")
-		fmt.Println(string(b))
+		var pretty bytes.Buffer
+		json.Indent(&pretty, []byte(raw), "", "  ")
+		fmt.Println(pretty.String())
 		return
 	}
 
