@@ -46,8 +46,8 @@ func main() {
 	}
 	if *verboseFlag {
 		cfg.Verbose = true
-		verbose = true
 	}
+	verbose = cfg.Verbose
 	client, err := unifi.NewClient(cfg.UnifiBaseURL, cfg.UnifiAPIKey, cfg.UnifiSite, cfg.Insecure, cfg.CACert)
 	if err != nil {
 		log.Fatalf("client: %v", err)
@@ -55,51 +55,59 @@ func main() {
 	client.Verbose = cfg.Verbose
 
 	if *listSitesFlag {
-		sites, err := client.ListSites()
+		body, err := client.ListSites()
 		if err != nil {
 			log.Fatalf("list sites: %v", err)
 		}
 		var pretty bytes.Buffer
-		json.Indent(&pretty, []byte(sites), "", "  ")
-		fmt.Println(pretty.String())
+		if err := json.Indent(&pretty, []byte(body), "", "  "); err != nil {
+			fmt.Println(body)
+		} else {
+			fmt.Println(pretty.String())
+		}
 		return
 	}
 
 	if *getRouteFlag {
-		raw, err := client.GetStaticRouteRaw(cfg.RouteID)
+		body, err := client.GetStaticRouteRaw(cfg.RouteID)
 		if err != nil {
 			log.Fatalf("get route: %v", err)
 		}
 		var pretty bytes.Buffer
-		json.Indent(&pretty, []byte(raw), "", "  ")
-		fmt.Println(pretty.String())
+		if err := json.Indent(&pretty, []byte(body), "", "  "); err != nil {
+			fmt.Println(body)
+		} else {
+			fmt.Println(pretty.String())
+		}
 		return
 	}
 
 	if *infoFlag {
-		info, err := client.GetInfo()
+		body, err := client.GetInfo()
 		if err != nil {
 			log.Fatalf("info: %v", err)
 		}
 		var pretty bytes.Buffer
-		json.Indent(&pretty, []byte(info), "", "  ")
-		fmt.Println(pretty.String())
+		if err := json.Indent(&pretty, []byte(body), "", "  "); err != nil {
+			fmt.Println(body)
+		} else {
+			fmt.Println(pretty.String())
+		}
 		return
 	}
 
 	if *listRoutesFlag {
-		raw, err := client.ListStaticRoutesRaw()
+		body, err := client.ListStaticRoutesRaw()
 		if err != nil {
 			log.Fatalf("list routes: %v", err)
 		}
 		var pretty bytes.Buffer
-		json.Indent(&pretty, []byte(raw), "", "  ")
-		fmt.Println(pretty.String())
+		if err := json.Indent(&pretty, []byte(body), "", "  "); err != nil {
+			fmt.Println(body)
+		} else {
+			fmt.Println(pretty.String())
+		}
 		return
-	}
-
-	if *dryRunFlag {
-		log.Println("DRY RUN — no routes will be modified")
 	}
 
 	sigCh := make(chan os.Signal, 1)
@@ -108,14 +116,18 @@ func main() {
 	ticker := time.NewTicker(cfg.CheckInterval)
 	defer ticker.Stop()
 
-	run(cfg, client, *dryRunFlag)
+	if err := run(cfg, client, *dryRunFlag); err != nil {
+		if *onceFlag {
+			os.Exit(1)
+		}
+	}
 	if *onceFlag {
 		return
 	}
 	for {
 		select {
 		case <-ticker.C:
-			run(cfg, client, *dryRunFlag)
+			_ = run(cfg, client, *dryRunFlag)
 		case <-sigCh:
 			verbosef("shutting down")
 			return
@@ -123,39 +135,51 @@ func main() {
 	}
 }
 
-func run(cfg *config.Config, client *unifi.Client, dryRun bool) {
+func run(cfg *config.Config, client *unifi.Client, dryRun bool) error {
 	verbosef("resolving DNS name...")
 	ip, err := dns.ResolveIPv4(cfg.DNSName)
 	if err != nil {
-		log.Fatalf("dns resolution failed: %v", err)
+		log.Printf("dns resolution failed: %v", err)
+		return err
 	}
 	verbosef("resolved %s -> %s", cfg.DNSName, ip)
 
 	newDest := ip + cfg.RouteCIDR
 
+	if dryRun {
+		log.Printf("DRY RUN — checking %s (would update if changed)", cfg.DNSName)
+	}
+
 	verbosef("checking current static route...")
 	route, err := client.GetStaticRoute(cfg.RouteID)
 	if err != nil {
-		log.Fatalf("failed to get route: %v", err)
+		log.Printf("failed to get route: %v", err)
+		return err
 	}
 	verbosef("current route destination: %s", route.Destination)
 
 	if route.Destination == newDest {
-		verbosef("route is already up-to-date")
-		return
+		if dryRun {
+			log.Printf("DRY RUN: route is already up-to-date (%s)", route.Destination)
+		} else {
+			verbosef("route is already up-to-date")
+		}
+		return nil
 	}
 
 	verbosef("destination changed from %s to %s", route.Destination, newDest)
 
 	if dryRun {
 		log.Printf("DRY RUN: would update route %s (%s) destination to %s", route.Name, route.ID, newDest)
-		return
+		return nil
 	}
 
 	verbosef("updating...")
 	route.Destination = newDest
 	if err := client.UpdateStaticRoute(route); err != nil {
-		log.Fatalf("failed to update route: %v", err)
+		log.Printf("failed to update route: %v", err)
+		return err
 	}
 	fmt.Printf("SUCCESS: updated route %s (%s) destination to %s\n", route.Name, route.ID, newDest)
+	return nil
 }
