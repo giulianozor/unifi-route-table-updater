@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -58,7 +59,9 @@ func main() {
 		if err != nil {
 			log.Fatalf("list sites: %v", err)
 		}
-		fmt.Println(sites)
+		var pretty bytes.Buffer
+		json.Indent(&pretty, []byte(sites), "", "  ")
+		fmt.Println(pretty.String())
 		return
 	}
 
@@ -77,7 +80,9 @@ func main() {
 		if err != nil {
 			log.Fatalf("info: %v", err)
 		}
-		fmt.Println(info)
+		var pretty bytes.Buffer
+		json.Indent(&pretty, []byte(info), "", "  ")
+		fmt.Println(pretty.String())
 		return
 	}
 
@@ -86,9 +91,8 @@ func main() {
 		if err != nil {
 			log.Fatalf("list routes: %v", err)
 		}
-		for _, r := range routes {
-			fmt.Printf("%s  %s  %s\n", r.ID, r.Name, r.Destination)
-		}
+		b, _ := json.MarshalIndent(routes, "", "  ")
+		fmt.Println(string(b))
 		return
 	}
 
