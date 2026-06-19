@@ -1,8 +1,8 @@
 package dns
 
 import (
+	"fmt"
 	"net"
-	"strings"
 )
 
 func ResolveIPv4(name string) (string, error) {
@@ -15,12 +15,6 @@ func ResolveIPv4(name string) (string, error) {
 		if ip != nil && ip.To4() != nil {
 			return ip.String(), nil
 		}
-		if strings.Contains(addr, ".") {
-			return addr, nil
-		}
 	}
-	if len(addrs) > 0 {
-		return addrs[0], nil
-	}
-	return "", nil
+	return "", fmt.Errorf("no IPv4 addresses found for %s", name)
 }

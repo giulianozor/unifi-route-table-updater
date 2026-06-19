@@ -114,3 +114,121 @@ func TestLoad_InvalidYAML(t *testing.T) {
 		t.Fatal("expected error for invalid yaml")
 	}
 }
+
+func TestLoad_EmptyRouteCIDR(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	content := []byte(`
+unifi_base_url: "https://192.168.1.1:8443"
+unifi_api_key: "test-key"
+dns_name: "home.example.com"
+route_id: "abc123"
+route_cidr: ""
+`)
+	if err := os.WriteFile(path, content, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected error for empty route_cidr")
+	}
+}
+
+func TestLoad_RouteCIDRMissingSlash(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	content := []byte(`
+unifi_base_url: "https://192.168.1.1:8443"
+unifi_api_key: "test-key"
+dns_name: "home.example.com"
+route_id: "abc123"
+route_cidr: "32"
+`)
+	if err := os.WriteFile(path, content, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected error for route_cidr without leading slash")
+	}
+}
+
+func TestLoad_InvalidBaseURLNoScheme(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	content := []byte(`
+unifi_base_url: "192.168.1.1:8443"
+unifi_api_key: "test-key"
+dns_name: "home.example.com"
+route_id: "abc123"
+`)
+	if err := os.WriteFile(path, content, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected error for base URL without scheme")
+	}
+}
+
+func TestLoad_InvalidBaseURLNoHost(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	content := []byte(`
+unifi_base_url: "https://"
+unifi_api_key: "test-key"
+dns_name: "home.example.com"
+route_id: "abc123"
+`)
+	if err := os.WriteFile(path, content, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected error for base URL without host")
+	}
+}
+
+func TestLoad_ZeroCheckInterval(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	content := []byte(`
+unifi_base_url: "https://192.168.1.1:8443"
+unifi_api_key: "test-key"
+dns_name: "home.example.com"
+route_id: "abc123"
+check_interval: "0s"
+`)
+	if err := os.WriteFile(path, content, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected error for zero check_interval")
+	}
+}
+
+func TestLoad_NegativeCheckInterval(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	content := []byte(`
+unifi_base_url: "https://192.168.1.1:8443"
+unifi_api_key: "test-key"
+dns_name: "home.example.com"
+route_id: "abc123"
+check_interval: "-5m"
+`)
+	if err := os.WriteFile(path, content, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected error for negative check_interval")
+	}
+}

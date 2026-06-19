@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -22,16 +24,16 @@ type Client struct {
 }
 
 type StaticRoute struct {
-	ID              string `json:"_id,omitempty"`
-	Name            string `json:"name"`
-	Destination     string `json:"static-route_network"`
-	Interface       string `json:"static-route_interface"`
-	RouteType       string `json:"static-route_type"`
-	Type            string `json:"type"`
-	Enabled         bool   `json:"enabled"`
-	GatewayDevice   string `json:"gateway_device"`
-	GatewayType     string `json:"gateway_type"`
-	SiteID          string `json:"site_id"`
+	ID            string `json:"_id,omitempty"`
+	Name          string `json:"name"`
+	Destination   string `json:"static-route_network"`
+	Interface     string `json:"static-route_interface"`
+	RouteType     string `json:"static-route_type"`
+	Type          string `json:"type"`
+	Enabled       bool   `json:"enabled"`
+	GatewayDevice string `json:"gateway_device"`
+	GatewayType   string `json:"gateway_type"`
+	SiteID        string `json:"site_id"`
 }
 
 type unifiResponse struct {
@@ -61,11 +63,14 @@ func NewClient(baseURL, apiKey, site string, insecure bool, caCertPath string) (
 		tlsCfg.RootCAs = pool
 	}
 
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSClientConfig = tlsCfg
+
 	return &Client{
 		baseURL:    baseURL,
 		apiKey:     apiKey,
 		site:       site,
-		httpClient: &http.Client{Timeout: 30 * time.Second, Transport: &http.Transport{TLSClientConfig: tlsCfg}},
+		httpClient: &http.Client{Timeout: 30 * time.Second, Transport: transport},
 	}, nil
 }
 
@@ -79,12 +84,12 @@ func (c *Client) do(method, path string, body io.Reader) (*http.Response, error)
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header["X-API-KEY"] = []string{c.apiKey}
+	req.Header.Set("X-API-KEY", c.apiKey)
 	if c.Verbose {
 		fmt.Printf("DEBUG: %s %s\n", method, u)
 		for k, v := range req.Header {
 			val := v[0]
-			if k == "X-Api-Key" || k == "X-API-KEY" {
+			if k == "X-Api-Key" {
 				val = "***"
 			}
 			fmt.Printf("DEBUG:   %s: %s\n", k, val)
@@ -101,6 +106,14 @@ func (c *Client) sitePath(suffix string) string {
 	return fmt.Sprintf("/proxy/network/api/s/%s/rest%s", c.site, suffix)
 }
 
+func formatData(data []json.RawMessage) string {
+	var parts []string
+	for _, d := range data {
+		parts = append(parts, string(d))
+	}
+	return "[" + strings.Join(parts, ",") + "]"
+}
+
 func (c *Client) fetchRoutes() ([]StaticRoute, error) {
 	resp, err := c.do("GET", c.sitePath("/routing"), nil)
 	if err != nil {
@@ -110,7 +123,9 @@ func (c *Client) fetchRoutes() ([]StaticRoute, error) {
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		if c.Verbose {
-			fmt.Printf("DEBUG: %s %s -> %s\n", resp.Request.Method, resp.Request.URL, resp.Status)
+			if resp.Request != nil {
+				fmt.Printf("DEBUG: %s %s -> %s\n", resp.Request.Method, resp.Request.URL, resp.Status)
+			}
 			for k, v := range resp.Header {
 				fmt.Printf("DEBUG:   %s: %s\n", k, v[0])
 			}
@@ -123,16 +138,19 @@ func (c *Client) fetchRoutes() ([]StaticRoute, error) {
 
 	var result unifiResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		io.Copy(io.Discard, resp.Body)
 		return nil, err
 	}
+	io.Copy(io.Discard, resp.Body)
 	if result.Meta.RC != "ok" {
-		return nil, fmt.Errorf("unexpected response code: %s", result.Meta.RC)
+		return nil, fmt.Errorf("get routes failed: rc=%s data=%s", result.Meta.RC, formatData(result.Data))
 	}
 
 	var routes []StaticRoute
 	for _, raw := range result.Data {
 		var route StaticRoute
 		if err := json.Unmarshal(raw, &route); err != nil {
+			log.Printf("unifi: skipping route unmarshal error: %v", err)
 			continue
 		}
 		routes = append(routes, route)
@@ -196,10 +214,12 @@ func (c *Client) GetStaticRoute(id string) (*StaticRoute, error) {
 
 	var result unifiResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		io.Copy(io.Discard, resp.Body)
 		return nil, err
 	}
+	io.Copy(io.Discard, resp.Body)
 	if result.Meta.RC != "ok" {
-		return nil, fmt.Errorf("unexpected response code: %s", result.Meta.RC)
+		return nil, fmt.Errorf("get route failed: rc=%s data=%s", result.Meta.RC, formatData(result.Data))
 	}
 	if len(result.Data) == 0 {
 		return nil, fmt.Errorf("route %s not found", id)
@@ -226,7 +246,10 @@ func (c *Client) GetStaticRouteRaw(id string) (string, error) {
 }
 
 func (c *Client) UpdateStaticRoute(route *StaticRoute) error {
-	b, _ := json.Marshal(route)
+	b, err := json.Marshal(route)
+	if err != nil {
+		return fmt.Errorf("marshaling route: %w", err)
+	}
 	resp, err := c.do("PUT", c.sitePath("/routing/"+route.ID), bytes.NewReader(b))
 	if err != nil {
 		return err
@@ -239,10 +262,12 @@ func (c *Client) UpdateStaticRoute(route *StaticRoute) error {
 
 	var result unifiResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		io.Copy(io.Discard, resp.Body)
 		return err
 	}
+	io.Copy(io.Discard, resp.Body)
 	if result.Meta.RC != "ok" {
-		return fmt.Errorf("update route unexpected response: %s", result.Meta.RC)
+		return fmt.Errorf("update route failed: rc=%s data=%s", result.Meta.RC, formatData(result.Data))
 	}
 	return nil
 }

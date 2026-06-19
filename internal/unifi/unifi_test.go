@@ -38,7 +38,9 @@ func TestGetStaticRoute_Found(t *testing.T) {
 		marshalRoute(testRoute("1", "foo", "10.0.0.1/32")),
 		marshalRoute(testRoute("2", "bar", "10.0.0.2/32")),
 	}
-	resp := unifiResponse{Data: routes, Meta: struct{ RC string `json:"rc"` }{RC: "ok"}}
+	resp := unifiResponse{Data: routes, Meta: struct {
+		RC string `json:"rc"`
+	}{RC: "ok"}}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-Api-Key") != "test-key" {
@@ -64,7 +66,9 @@ func TestGetStaticRoute_Found(t *testing.T) {
 }
 
 func TestGetStaticRoute_NotFound(t *testing.T) {
-	resp := unifiResponse{Data: nil, Meta: struct{ RC string `json:"rc"` }{RC: "ok"}}
+	resp := unifiResponse{Data: nil, Meta: struct {
+		RC string `json:"rc"`
+	}{RC: "ok"}}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(resp)
@@ -79,7 +83,9 @@ func TestGetStaticRoute_NotFound(t *testing.T) {
 }
 
 func TestGetStaticRoute_NotOK(t *testing.T) {
-	resp := unifiResponse{Data: nil, Meta: struct{ RC string `json:"rc"` }{RC: "error"}}
+	resp := unifiResponse{Data: nil, Meta: struct {
+		RC string `json:"rc"`
+	}{RC: "error"}}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(resp)
@@ -146,7 +152,9 @@ func TestListStaticRoutes(t *testing.T) {
 		marshalRoute(testRoute("r1", "foo", "10.0.0.1/32")),
 		marshalRoute(testRoute("r2", "bar", "10.0.0.2/32")),
 	}
-	resp := unifiResponse{Data: routes, Meta: struct{ RC string `json:"rc"` }{RC: "ok"}}
+	resp := unifiResponse{Data: routes, Meta: struct {
+		RC string `json:"rc"`
+	}{RC: "ok"}}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(resp)
