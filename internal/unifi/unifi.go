@@ -21,6 +21,10 @@ type Client struct {
 	site       string
 	httpClient *http.Client
 	Verbose    bool
+
+	MaxRetries   int
+	retryInitial time.Duration
+	retryMax     time.Duration
 }
 
 type StaticRoute struct {
@@ -67,11 +71,25 @@ func NewClient(baseURL, apiKey, site string, insecure bool, caCertPath string) (
 	transport.TLSClientConfig = tlsCfg
 
 	return &Client{
-		baseURL:    baseURL,
-		apiKey:     apiKey,
-		site:       site,
-		httpClient: &http.Client{Timeout: 30 * time.Second, Transport: transport},
+		baseURL:      baseURL,
+		apiKey:       apiKey,
+		site:         site,
+		httpClient:   &http.Client{Timeout: 45 * time.Second, Transport: transport},
+		MaxRetries:   4,
+		retryInitial: time.Second,
+		retryMax:     30 * time.Second,
 	}, nil
+}
+
+func (c *Client) retryDelay(attempt int) time.Duration {
+	d := c.retryInitial
+	for i := 0; i < attempt; i++ {
+		d *= 3
+		if d >= c.retryMax {
+			return c.retryMax
+		}
+	}
+	return d
 }
 
 func (c *Client) do(method, path string, body io.Reader) (*http.Response, error) {
@@ -79,27 +97,51 @@ func (c *Client) do(method, path string, body io.Reader) (*http.Response, error)
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequest(method, u, body)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-API-KEY", c.apiKey)
-	if c.Verbose {
-		fmt.Printf("DEBUG: %s %s\n", method, u)
-		for k, v := range req.Header {
-			val := v[0]
-			if k == "X-Api-Key" {
-				val = "***"
-			}
-			fmt.Printf("DEBUG:   %s: %s\n", k, val)
+
+	var bodyBytes []byte
+	if body != nil {
+		if bodyBytes, err = io.ReadAll(body); err != nil {
+			return nil, err
 		}
 	}
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, err
+
+	var lastErr error
+	for attempt := 0; ; attempt++ {
+		var reqBody io.Reader
+		if bodyBytes != nil {
+			reqBody = bytes.NewReader(bodyBytes)
+		}
+		req, err := http.NewRequest(method, u, reqBody)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-API-KEY", c.apiKey)
+		if c.Verbose {
+			fmt.Printf("DEBUG: %s %s\n", method, u)
+			for k, v := range req.Header {
+				val := v[0]
+				if k == "X-Api-Key" {
+					val = "***"
+				}
+				fmt.Printf("DEBUG:   %s: %s\n", k, val)
+			}
+		}
+		resp, err := c.httpClient.Do(req)
+		if err == nil {
+			return resp, nil
+		}
+		lastErr = err
+		if attempt >= c.MaxRetries {
+			break
+		}
+		delay := c.retryDelay(attempt)
+		if c.Verbose {
+			fmt.Printf("DEBUG: request failed: %v; retrying in %v\n", err, delay)
+		}
+		time.Sleep(delay)
 	}
-	return resp, nil
+	return nil, lastErr
 }
 
 func (c *Client) sitePath(suffix string) string {

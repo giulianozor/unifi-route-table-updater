@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 )
 
@@ -182,5 +183,67 @@ func TestUpdateStaticRoute_NotOK(t *testing.T) {
 	err := client.UpdateStaticRoute(&route)
 	if err == nil {
 		t.Fatal("expected error for rc != ok")
+	}
+}
+
+func TestGetStaticRoute_RetriesThenSucceeds(t *testing.T) {
+	var attempts atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts.Add(1)
+		if attempts.Load() < 3 {
+			hj := w.(http.Hijacker)
+			conn, _, err := hj.Hijack()
+			if err != nil {
+				http.Error(w, "hijack error", http.StatusInternalServerError)
+				return
+			}
+			conn.Close()
+			return
+		}
+		resp := unifiResponse{Data: []json.RawMessage{
+			marshalRoute(testRoute("1", "foo", "10.0.0.1/32")),
+		}, Meta: struct {
+			RC string `json:"rc"`
+		}{RC: "ok"}}
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer srv.Close()
+
+	client := newTestClient(srv.URL, "key", "default")
+	client.MaxRetries = 3
+	route, err := client.GetStaticRoute("1")
+	if err != nil {
+		t.Fatalf("expected retry to succeed: %v", err)
+	}
+	if route.ID != "1" {
+		t.Fatalf("got %+v", route)
+	}
+	if got := attempts.Load(); got != 3 {
+		t.Fatalf("expected 3 attempts, got %d", got)
+	}
+}
+
+func TestGetStaticRoute_FailsAfterRetries(t *testing.T) {
+	var attempts atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts.Add(1)
+		hj := w.(http.Hijacker)
+		conn, _, err := hj.Hijack()
+		if err != nil {
+			http.Error(w, "hijack error", http.StatusInternalServerError)
+			return
+		}
+		conn.Close()
+	}))
+	defer srv.Close()
+
+	client := newTestClient(srv.URL, "key", "default")
+	client.MaxRetries = 2
+	_, err := client.GetStaticRoute("1")
+	if err == nil {
+		t.Fatal("expected error after exhausting retries")
+	}
+	if got := attempts.Load(); got != 3 {
+		t.Fatalf("expected %d attempts, got %d", client.MaxRetries+1, got)
 	}
 }
