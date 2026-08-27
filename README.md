@@ -90,11 +90,67 @@ verbose: false
 ## Makefile
 
 | Target | Description |
-|---|---|
+|--------|-------------|
 | `build` | Compile the binary |
 | `test` | Run all tests |
 | `test-race` | Run all tests with the race detector |
 | `clean` | Remove built binary and cache |
+| `install` | Install binary, OpenRC service, and default config |
+
+## Installation (Alpine Linux / OpenRC)
+
+An OpenRC init script is included for running `urt` as a system service on Alpine Linux or other OpenRC-based distributions.
+
+### Quick install
+
+```bash
+# Build and install everything (binary, service, config)
+sudo make install
+
+# Create a dedicated user for the service
+sudo adduser -S -H -s /sbin/nologin urt
+
+# Edit the configuration
+sudo vi /etc/urt/config.yaml
+
+# Start the service
+sudo rc-service urt start
+
+# Enable at boot
+sudo rc-update add urt default
+```
+
+### Manual install
+
+```bash
+# Build
+make build
+
+# Install binary
+sudo install -Dm755 urt /usr/bin/urt
+
+# Install OpenRC service and config
+sudo install -Dm755 openrc/urt /etc/init.d/urt
+sudo install -Dm644 openrc/conf.d/urt /etc/conf.d/urt
+
+# Copy and edit config
+sudo mkdir -p /etc/urt
+sudo install -Dm600 config.example.yaml /etc/urt/config.yaml
+sudo vi /etc/urt/config.yaml
+```
+
+### Configuration variables
+
+The service reads its defaults from `/etc/conf.d/urt`. Uncomment and edit any variable to override:
+
+| Variable | Default | Description |
+|---|---|---|
+| `URT_BIN` | `/usr/bin/urt` | Path to the binary |
+| `URT_CONFIG` | `/etc/urt/config.yaml` | Path to config file |
+| `URT_PIDFILE` | `/run/urt.pid` | PID file location |
+| `URT_LOGFILE` | `/var/log/urt.log` | Log file location |
+| `URT_USER` | `urt` | User to run the service as |
+| `URT_GROUP` | `urt` | Group to run the service as |
 
 ## Getting the API key
 

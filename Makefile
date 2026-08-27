@@ -1,8 +1,10 @@
-.PHONY: all build test clean fmt
+.PHONY: all build test clean fmt install
 
 APP     := urt
 SRC     := ./...
 LDFLAGS := -s -w
+PREFIX  ?= /usr
+DESTDIR ?=
 
 all: fmt build
 
@@ -21,3 +23,12 @@ fmt:
 clean:
 	rm -f $(APP)
 	go clean $(SRC)
+
+install: build
+	install -Dm755 $(APP) $(DESTDIR)$(PREFIX)/bin/$(APP)
+	install -Dm755 openrc/urt $(DESTDIR)/etc/init.d/urt
+	install -Dm644 openrc/conf.d/urt $(DESTDIR)/etc/conf.d/urt
+	install -dm755 $(DESTDIR)/etc/urt
+	@if [ ! -f $(DESTDIR)/etc/urt/config.yaml ]; then \
+		install -Dm600 config.example.yaml $(DESTDIR)/etc/urt/config.yaml; \
+	fi

@@ -1,0 +1,11 @@
+# /etc/conf.d/urt
+#
+# Override variables here. The init script uses sane defaults
+# if these are left unset.
+
+# URT_BIN=/usr/bin/urt
+# URT_CONFIG=/etc/urt/config.yaml
+# URT_PIDFILE=/run/urt.pid
+# URT_LOGFILE=/var/log/urt.log
+# URT_USER=urt
+# URT_GROUP=urt

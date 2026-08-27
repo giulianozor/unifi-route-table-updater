@@ -1,0 +1,61 @@
+#!/sbin/openrc-run
+
+description="UniFi Route Tracker"
+
+URT_BIN=${URT_BIN:-/usr/bin/urt}
+URT_CONFIG=${URT_CONFIG:-/etc/urt/config.yaml}
+URT_PIDFILE=${URT_PIDFILE:-/run/urt.pid}
+URT_LOGFILE=${URT_LOGFILE:-/var/log/urt.log}
+URT_USER=${URT_USER:-urt}
+URT_GROUP=${URT_GROUP:-urt}
+
+extra_commands="checkconfig"
+
+depend() {
+	need net
+	after firewall
+}
+
+checkconfig() {
+	if [ ! -f "$URT_CONFIG" ]; then
+		eerror "Configuration file not found: $URT_CONFIG"
+		eerror "Copy config.example.yaml to $URT_CONFIG and edit it."
+		return 1
+	fi
+	if [ ! -x "$URT_BIN" ]; then
+		eerror "Binary not found: $URT_BIN"
+		return 1
+	fi
+}
+
+ensure_user_group() {
+	if ! getent group "$URT_GROUP" >/dev/null 2>&1; then
+		addgroup "$URT_GROUP" 2>/dev/null
+	fi
+	if ! getent passwd "$URT_USER" >/dev/null 2>&1; then
+		adduser -D -G "$URT_GROUP" "$URT_USER" 2>/dev/null
+	fi
+}
+
+start() {
+	ebegin "Starting urt"
+	checkconfig
+	local rc=$?
+	eend $rc
+	[ $rc -eq 0 ] || return $rc
+	ensure_user_group
+	touch "$URT_LOGFILE"
+	chown "$URT_USER":"$URT_GROUP" "$URT_LOGFILE"
+	start-stop-daemon --start --background \
+		--make-pidfile --pidfile "$URT_PIDFILE" \
+		--user "$URT_USER" --group "$URT_GROUP" \
+		--stdout "$URT_LOGFILE" --stderr "$URT_LOGFILE" \
+		-- "$URT_BIN" -config "$URT_CONFIG"
+	eend $?
+}
+
+stop() {
+	ebegin "Stopping urt"
+	start-stop-daemon --stop --pidfile "$URT_PIDFILE" --retry TERM/30/KILL/5
+	eend $?
+}
